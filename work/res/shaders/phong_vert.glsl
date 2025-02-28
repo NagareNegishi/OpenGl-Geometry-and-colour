@@ -1,15 +1,12 @@
-#version 330 core
+#version 330 core // specify the version of GLSL
 
 // uniform data
-uniform mat4 uProjectionMatrix;
-uniform mat4 uModelViewMatrix;
-
-// color data
-uniform vec3 uColor;
+uniform mat4 uProjectionMatrix; // projection matrix
+uniform mat4 uModelViewMatrix;	// model to view matrix
 
 // mesh data
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 aNormal;
+layout(location = 0) in vec3 aPosition; // vertex position from Obj
+layout(location = 1) in vec3 aNormal;	// vertex normal from Obj
 
 // model data (this must match the input of the vertex shader)
 out VertexData {
@@ -17,8 +14,6 @@ out VertexData {
 	vec3 normal;
 } v_out;
 
-// flag for color data
-out vec3 fColor;
 
 void main() {
 	// transform vertex data to viewspace
@@ -27,7 +22,4 @@ void main() {
 
 	// set the screenspace position (needed for converting to fragment data)
 	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition, 1);
-
-	// set the color
-	fColor = uColor;
 }
