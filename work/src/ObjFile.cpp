@@ -1,5 +1,5 @@
-// ObjFile.cpp
-#include "ObjFile.h"
+// objfile.cpp
+#include "objfile.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -23,7 +23,6 @@ bool ObjFile::loadOBJ(const std::string& filepath) { // const for read-only
 	normalIndices.clear();
 	drawIndices.clear();
 	meshVertices.clear();
-
 
 	// open the file
 	ifstream fsIn;
@@ -102,54 +101,53 @@ void ObjFile::parseVertex(const std::string& vertex) {
 * create the mesh data from the raw data, and store it in the GPU
 */
 void ObjFile::build() {
-	if (vao == 0) {
-		// Create triangles from the original indices (Each triangle has 3 vertices, but possibly with different normals)
-		for (auto i = 0; i < indices.size(); i++) {
-			Vertex vertex;
-			// Get the current vertex index (to tell which vertex to use)
-			unsigned int vertexIndex = indices[i];
-			vertex.position = vertices[vertexIndex]; // Set the vertex position
-			unsigned int normalIndex;
-			// Get the normal index (if it exists) or use the vertex index
-			if (i < normalIndices.size()) {
-				normalIndex = normalIndices[i];
-			} else {
-				normalIndex = vertexIndex;
-			}
-			vertex.normal = normals[normalIndex]; // Set the vertex normal
-			meshVertices.push_back(vertex); // Add the vertex to our mesh
+	if (vao != 0) return; // already built
+	// Create triangles from the original indices (Each triangle has 3 vertices, but possibly with different normals)
+	for (auto i = 0; i < indices.size(); i++) {
+		Vertex vertex;
+		// Get the current vertex index (to tell which vertex to use)
+		unsigned int vertexIndex = indices[i];
+		vertex.position = vertices[vertexIndex]; // Set the vertex position
+		unsigned int normalIndex;
+		// Get the normal index (if it exists) or use the vertex index
+		if (i < normalIndices.size()) {
+			normalIndex = normalIndices[i];
+		} else {
+			normalIndex = vertexIndex;
 		}
-		// Create a list of indices for drawing
-		drawIndices.resize(meshVertices.size());
-		for (auto i = 0; i < meshVertices.size(); i++) {
-			drawIndices[i] = i;
-		}
-
-		// Generate buffers
-		glGenVertexArrays(1, &vao);
-		glGenBuffers(1, &vbo);
-		glGenBuffers(1, &ebo);
-
-		// bind the VAO
-		glBindVertexArray(vao);
-
-		// bind the VBO
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * meshVertices.size(), meshVertices.data(), GL_STATIC_DRAW);
-
-		// set the vertex and normal attributes
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), nullptr);
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(sizeof(glm::vec3))); // offset by the size of the position
-
-		// bind the EBO
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * drawIndices.size(), drawIndices.data(), GL_STATIC_DRAW);
-
-		// Unbind the VAO
-		glBindVertexArray(0);
+		vertex.normal = normals[normalIndex]; // Set the vertex normal
+		meshVertices.push_back(vertex); // Add the vertex to mesh
 	}
+	// Create a list of indices for drawing
+	drawIndices.resize(meshVertices.size());
+	for (auto i = 0; i < meshVertices.size(); i++) {
+		drawIndices[i] = i;
+	}
+
+	// Generate buffers
+	glGenVertexArrays(1, &vao);
+	glGenBuffers(1, &vbo);
+	glGenBuffers(1, &ebo);
+
+	// bind the VAO
+	glBindVertexArray(vao);
+
+	// bind the VBO
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * meshVertices.size(), meshVertices.data(), GL_STATIC_DRAW);
+
+	// set the vertex and normal attributes
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), nullptr);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(sizeof(glm::vec3))); // offset by the size of the position
+
+	// bind the EBO
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * drawIndices.size(), drawIndices.data(), GL_STATIC_DRAW);
+
+	// Unbind the VAO
+	glBindVertexArray(0);
 }
 
 /*
@@ -164,24 +162,23 @@ void ObjFile::draw() {
 
 // clear the mesh geometry data
 void ObjFile::destroy() {
-	if (vao != 0) {
-		// delete the data buffers
-		glDeleteVertexArrays(1, &vao);
-		glDeleteBuffers(1, &vbo);
-		glDeleteBuffers(1, &ebo);
-		// reset the variables
-		vao = 0;
-		vbo = 0;
-		ebo = 0;
-		// clear the CPU-side data (may not nessesary?)
-		vertices.clear();
-		normals.clear();
-		indices.clear();
-		textureIndices.clear();
-		normalIndices.clear();
-		drawIndices.clear();
-		meshVertices.clear();
-	}
+	if (vao == 0) return; // nothing to destroy
+	// delete the data buffers
+	glDeleteVertexArrays(1, &vao);
+	glDeleteBuffers(1, &vbo);
+	glDeleteBuffers(1, &ebo);
+	// reset the variables
+	vao = 0;
+	vbo = 0;
+	ebo = 0;
+	// clear the CPU-side data (may not nessesary?)
+	vertices.clear();
+	normals.clear();
+	indices.clear();
+	textureIndices.clear();
+	normalIndices.clear();
+	drawIndices.clear();
+	meshVertices.clear();
 }
 
 /*

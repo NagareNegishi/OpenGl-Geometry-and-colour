@@ -16,8 +16,8 @@ SET(sources
 
 	"triangle.hpp"
 
-	"ObjFile.h"
-	"ObjFile.cpp"
+	"objfile.h"
+	"objfile.cpp"
 
 	"CMakeLists.txt"
 )

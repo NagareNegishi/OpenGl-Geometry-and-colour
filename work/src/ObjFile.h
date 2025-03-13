@@ -1,4 +1,4 @@
-// ObjFile.h
+// objfile.h
 #pragma once
 // std
 #include <string>
