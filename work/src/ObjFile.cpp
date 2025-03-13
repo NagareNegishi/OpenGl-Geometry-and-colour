@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm> // Add this include for std::min
 
 using namespace std;
 using namespace glm; // OpenGL Mathematics, for vec3 
@@ -10,7 +11,7 @@ using namespace glm; // OpenGL Mathematics, for vec3
 /*
 * take single string argument of the filepath to the.objfile, that loads the data from the file into the private variables
 *
-* Let the file name be a string specified in the ImGui input controls -> 
+* Let the file name be a string specified in the ImGui input controls ->
 * in application.cpp -> renderGUI() -> InputText() is taking the file name as input
 */
 bool ObjFile::loadOBJ(const std::string& filepath) { // const for read-only
@@ -18,6 +19,11 @@ bool ObjFile::loadOBJ(const std::string& filepath) { // const for read-only
 	vertices.clear();
 	normals.clear();
 	indices.clear();
+	textureIndices.clear();
+	normalIndices.clear();
+	drawIndices.clear();
+	meshVertices.clear();
+
 
 	// open the file
 	ifstream fsIn;
@@ -71,87 +77,118 @@ void ObjFile::parseFace(std::istringstream& ss) {
 }
 
 // helper function to parse vertex data
+// texture indices are only collected for printing, not used in the mesh
 void ObjFile::parseVertex(const std::string& vertex) {
-	// format is "v/vt/vn", but only need vertex position
+	// format is "v/vt/vn"
 	stringstream ss(vertex);
-	string v;
+	string v, vt, vn;
 	getline(ss, v, '/');
+	getline(ss, vt, '/');
+	getline(ss, vn, '/');
 	// obj file indexes from 1, so subtract 1
 	if (!v.empty()) {
 		indices.push_back(stoi(v) - 1);
 	}
+	if (!vt.empty()) {
+		textureIndices.push_back(stoi(vt) - 1);
+	}
+	if (!vn.empty()) {
+		normalIndices.push_back(stoi(vn) - 1);
+	}
 }
 
-// set up mesh geometry data on the OpenGL side
+/*
+* must be called after the loadOBJ() function, to build the mesh data
+* create the mesh data from the raw data, and store it in the GPU
+*/
 void ObjFile::build() {
 	if (vao == 0) {
-		// generate buffers
+		// Create triangles from the original indices (Each triangle has 3 vertices, but possibly with different normals)
+		for (auto i = 0; i < indices.size(); i++) {
+			Vertex vertex;
+			// Get the current vertex index (to tell which vertex to use)
+			unsigned int vertexIndex = indices[i];
+			vertex.position = vertices[vertexIndex]; // Set the vertex position
+			unsigned int normalIndex;
+			// Get the normal index (if it exists) or use the vertex index
+			if (i < normalIndices.size()) {
+				normalIndex = normalIndices[i];
+			} else {
+				normalIndex = vertexIndex;
+			}
+			vertex.normal = normals[normalIndex]; // Set the vertex normal
+			meshVertices.push_back(vertex); // Add the vertex to our mesh
+		}
+		// Create a list of indices for drawing
+		drawIndices.resize(meshVertices.size());
+		for (auto i = 0; i < meshVertices.size(); i++) {
+			drawIndices[i] = i;
+		}
+
+		// Generate buffers
 		glGenVertexArrays(1, &vao);
 		glGenBuffers(1, &vbo);
-		glGenBuffers(1, &nbo);
 		glGenBuffers(1, &ebo);
 
 		// bind the VAO
 		glBindVertexArray(vao);
 
 		// bind the VBO
-		glBindBuffer(GL_ARRAY_BUFFER, vbo); // GL_ARRAY_BUFFER is binding point
-		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * vertices.size(), vertices.data(), GL_STATIC_DRAW); // upload the vertex data
-		glEnableVertexAttribArray(0); // set up the vertex attribute, attribute 0 is usually the vertex position
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr); // tell OpenGL how to interpret the data (3 floats per vertex)
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * meshVertices.size(), meshVertices.data(), GL_STATIC_DRAW);
 
-		// bind the NBO
-		glBindBuffer(GL_ARRAY_BUFFER, nbo);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * normals.size(), normals.data(), GL_STATIC_DRAW);
-		glEnableVertexAttribArray(1); // set up the vertex attribute, attribute 1 is usually the vertex normal
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr); // tell OpenGL how to interpret the data (3 floats per normal)
+		// set the vertex and normal attributes
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), nullptr);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(sizeof(glm::vec3))); // offset by the size of the position
 
 		// bind the EBO
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo); // GL_ELEMENT_ARRAY_BUFFER is binding point
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * indices.size(), indices.data(), GL_STATIC_DRAW); // upload the indices
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * drawIndices.size(), drawIndices.data(), GL_STATIC_DRAW);
 
-		// unbind the VAO
+		// Unbind the VAO
 		glBindVertexArray(0);
 	}
 }
 
-// draw the mesh
+/*
+* draw the mesh data, must be called after the build() function
+*/
 void ObjFile::draw() {
 	if (vao == 0) return;
 	glBindVertexArray(vao); // bind our VAO which sets up all our buffers and data for us
-	glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0); // tell opengl to draw our VAO using the draw mode and how many verticies to render
+	glDrawElements(GL_TRIANGLES, drawIndices.size(), GL_UNSIGNED_INT, 0); // tell opengl to draw our VAO using the draw mode and how many verticies to render
 	glBindVertexArray(0); // unbind the VAO
 }
+
 // clear the mesh geometry data
 void ObjFile::destroy() {
 	if (vao != 0) {
 		// delete the data buffers
 		glDeleteVertexArrays(1, &vao);
 		glDeleteBuffers(1, &vbo);
-		glDeleteBuffers(1, &nbo);
 		glDeleteBuffers(1, &ebo);
 		// reset the variables
 		vao = 0;
 		vbo = 0;
-		nbo = 0;
 		ebo = 0;
 		// clear the CPU-side data (may not nessesary?)
 		vertices.clear();
 		normals.clear();
 		indices.clear();
+		textureIndices.clear();
+		normalIndices.clear();
+		drawIndices.clear();
+		meshVertices.clear();
 	}
 }
 
-
 /*
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ask!!!!!!!!!!!!!!!!!!!!!!
-
-
+* prints out the current raw mesh data in the console.
+* faces are reconstructed to the original format
+* commented out version is limited to 10 vertices for faster debugging
 */
-// prints out the current raw mesh data in the console. Link the printMeshData() function to a button in ImGui
-// printing out every vertex, normal and index, may be better to limit the output to the first few
-// but it is dependent on the requirements of the project
 void ObjFile::printMeshData() {
 	cout << "Vertices: " << vertices.size() << endl;
 	for (const auto& v : vertices) {
@@ -161,10 +198,38 @@ void ObjFile::printMeshData() {
 	for (const auto& n : normals) {
 		cout << "vn " << n.x << " " << n.y << " " << n.z << endl;
 	}
-	cout << "Indices: " << indices.size() << endl;
-	for (size_t i = 0; i < indices.size(); i += 3) {
-		cout << "f " << indices[i] << " " << indices[i + 1] << " " << indices[i + 2] << endl;
+	// reconstruct the faces from the indices
+	if (indices.size() != textureIndices.size() || indices.size() != normalIndices.size()) {
+		cerr << "Error: Indices, texture indices, and normal indices do not match" << endl;
+		return;
 	}
+	if (indices.size() % 3 != 0) {
+		cerr << "Error: Only triangles are supported" << endl;
+		return;
+	}
+	cout << "Faces: " << indices.size() / 3 << endl; // a line is 3 sets of indices
+	for (auto i = 0; i < indices.size(); i += 3) { // +1 to convert to 1-based index
+		cout << "f " << indices[i] + 1 << "/" << textureIndices[i] + 1 << "/" << normalIndices[i] + 1 << " ";
+		cout << indices[i + 1] + 1 << "/" << textureIndices[i + 1] + 1 << "/" << normalIndices[i + 1] + 1 << " ";
+		cout << indices[i + 2] + 1 << "/" << textureIndices[i + 2] + 1 << "/" << normalIndices[i + 2] + 1 << endl;
+	}
+
+	// limit the output to 10 for faster debugging
+	// 
+	//cout << "Vertices: " << vertices.size() << endl;
+	//for (size_t i = 0; i < vertices.size() && i < 10; i++) {
+	//	cout << "v " << vertices[i].x << " " << vertices[i].y << " " << vertices[i].z << endl;
+	//}
+	//cout << "Normals: " << normals.size() << endl;
+	//for (size_t i = 0; i < normals.size() && i < 10; i++) {
+	//	cout << "vn " << normals[i].x << " " << normals[i].y << " " << normals[i].z << endl;
+	//}
+	//cout << "Faces: " << indices.size() / 3 << endl;
+	//for (size_t i = 0; i < indices.size() && i < 30; i += 3) {
+	//	cout << "f " << indices[i] + 1 << "/" << textureIndices[i] + 1 << "/" << normalIndices[i] + 1 << " ";
+	//	cout << indices[i + 1] + 1 << "/" << textureIndices[i + 1] + 1 << "/" << normalIndices[i + 1] + 1 << " ";
+	//	cout << indices[i + 2] + 1 << "/" << textureIndices[i + 2] + 1 << "/" << normalIndices[i + 2] + 1 << endl;
+	//}
 }
 
 

@@ -33,11 +33,13 @@ private:
 	/* light source properties */
 	glm::vec3 m_lightDirection = glm::vec3(0.0f, -1.0f, -1.0f); // For directional light
 	glm::vec3 m_lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
-	// Phong model properties
-	float m_ambient = 0.1f;
-	float m_diffuse = 0.7f;
-	float m_specular = 0.2f;
-	float m_shininess = 32.0f;
+	
+	
+	//// Phong model properties
+	//float m_ambient = 0.1f;
+	//float m_diffuse = 0.7f;
+	//float m_specular = 0.2f;
+	//float m_shininess = 32.0f;
 
 
 public:

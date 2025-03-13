@@ -3,25 +3,32 @@
 // std
 #include <string>
 #include <vector>
+#include <sstream>
 // glm
 #include <glm/glm.hpp>
 // project
 #include "opengl.hpp"
 
+// store combined vertex data
+struct Vertex {
+	glm::vec3 position;
+	glm::vec3 normal;
+};
 
 class ObjFile {
 private:
-
 	// CPU-side data
 	std::vector<glm::vec3> vertices; // vertex positions
 	std::vector<glm::vec3> normals; // vertex normals
 	std::vector<unsigned int> indices; // indices for drawing triangles
+	std::vector<unsigned int> textureIndices; // indices for texture coordinates
+	std::vector<unsigned int> normalIndices; // indices for normals
+	std::vector<unsigned int> drawIndices;  // indices for OpenGL drawing
+	std::vector<Vertex> meshVertices; // processed vertices with aligned position and normal
 
 	// GPU-side data
 	GLuint vao = 0; // vertex array object, stores information about how the buffers are set up
 	GLuint vbo = 0; // vertex buffer object, stores the vertex data
-	GLuint nbo = 0; // normal buffer object, stores the normal data
-	// do i need it?????? GLuint tbo = 0; // texture buffer object, stores the texture data
 	GLuint ebo = 0; // element buffer object, stores the indices that make up primitives
 
 	// helper function to parse face data
@@ -29,7 +36,6 @@ private:
 	void parseVertex(const std::string& vertex);
 
 public:
-
 	// constructor & destructor
 	ObjFile() {}
 	~ObjFile() { destroy(); }
@@ -48,5 +54,4 @@ public:
 
 	// print the mesh data
 	void printMeshData();
-
 };
